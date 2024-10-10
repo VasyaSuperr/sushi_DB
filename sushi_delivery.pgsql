@@ -21,7 +21,6 @@
 
 -- №4 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 CREATE DATABASE sushi_delivery;
-DROP DATABASE sushi_delivery;
 
 CREATE TABLE clients (
     id SERIAL PRIMARY KEY,
@@ -61,6 +60,7 @@ CREATE TABLE dishes_to_orders (
     quantity INT NOT NULL CHECK(quantity > 0)
 );
 
+-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 INSERT INTO clients (name, phone_number, email, loyalty_points, notes) VALUES
 ('Іван', '+380123456789', 'ivan.petrov@example.com', 50, ''),
 ('Олена', '+380987654321', 'olena.koval@example.com', 30, 'Не використовувати соуси з глютеном.'),
@@ -151,11 +151,63 @@ INSERT INTO dishes_to_orders (order_id, dish_id, quantity) VALUES
 (29, 2, 3), (29, 6, 1),
 (30, 10, 1), (30, 8, 2);
 
+-- =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+-- 1. Cклад та вартість (певного) замовлення.
+SELECT d.ingredients, d.price
+FROM dishes AS d INNER JOIN dishes_to_orders AS d_to_o ON d.id = d_to_o.dish_id
+                 INNER JOIN orders AS o ON d_to_o.order_id = o.id
+WHERE o.id = 2
 
+-- 2. Перелік замовлень на сьогодні.
+INSERT INTO orders (date, delivery_address, status, client_id) VALUES
+('2024-10-10 10:00:00', 'вул. Лесі Українки, 1', 'Delivered', 1);
 
+INSERT INTO dishes_to_orders (order_id, dish_id, quantity) VALUES
+(31, 5, 3), (31, 1, 6); 
 
+SELECT *
+FROM orders
+WHERE DATE(date) = CURRENT_DATE 
 
+-- 3. Перелік замовлень за певний тиждень.
+SELECT *
+FROM orders
+WHERE DATE(date) >= DATE('2023-09-01') AND DATE(date) <= DATE('2023-09-07')
 
+-- 4. Виручку за день (Наприклад, 2023-10-03).
+SELECT SUM(d.price * d_to_o.quantity) AS earnings
+FROM dishes AS d INNER JOIN dishes_to_orders AS d_to_o ON d.id = d_to_o.dish_id
+                 INNER JOIN orders AS o ON d_to_o.order_id = o.id
+WHERE DATE(o.date) = DATE('2023-10-03') AND o.status = 'Delivered'
 
+-- 5. Виручку за місяць (сума всіх замовлень за місяць).
+SELECT SUM(d.price * d_to_o.quantity) AS earnings
+FROM dishes AS d INNER JOIN dishes_to_orders AS d_to_o ON d.id = d_to_o.dish_id
+                 INNER JOIN orders AS o ON d_to_o.order_id = o.id
+WHERE EXTRACT(MONTH FROM o.date) = 10 AND EXTRACT(YEAR FROM o.date) = 2023 AND o.status = 'Delivered';
 
+-- 6. Cписок клієнтів, які обслуговувалися 10 місяця 2023 року.
+INSERT INTO clients (name, phone_number, email, loyalty_points, notes) VALUES
+('Test', '+380123456788', 'ivanovich.petrov@example.com', 10, '');
 
+INSERT INTO dishes_to_orders (order_id, dish_id, quantity) VALUES
+(31, 8, 5), (31, 5, 1);
+
+SELECT c.*
+FROM clients AS c INNER JOIN orders AS o ON c.id = o.client_id
+WHERE EXTRACT(MONTH FROM o.date) = 10 AND EXTRACT(YEAR FROM o.date) = 2023
+
+-- 7. Tоп 5 страв на місяць.
+SELECT d.name, SUM(d_to_o.quantity) AS total_quantity, SUM(d.price * d_to_o.quantity) AS price_all_dishes
+FROM dishes AS d INNER JOIN dishes_to_orders AS d_to_o ON d.id = d_to_o.dish_id
+                 INNER JOIN orders AS o ON d_to_o.order_id = o.id
+WHERE EXTRACT(MONTH FROM o.date) = 10 AND EXTRACT(YEAR FROM o.date) = 2023 
+GROUP BY d.id, d.name
+ORDER BY total_quantity DESC
+LIMIT 5;
+
+-- 8. Ваш прибуток від продажу за місяць, за умови, що Ваш застосунок отримує 3% від суми замовлення.
+SELECT SUM(d.price * d_to_o.quantity) * 0.03 AS profit
+FROM dishes AS d INNER JOIN dishes_to_orders AS d_to_o ON d.id = d_to_o.dish_id
+                 INNER JOIN orders AS o ON d_to_o.order_id = o.id
+WHERE EXTRACT(MONTH FROM o.date) = 10 AND EXTRACT(YEAR FROM o.date) = 2023 
